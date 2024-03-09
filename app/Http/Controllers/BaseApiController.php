@@ -14,7 +14,7 @@ class BaseApiController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function sendResponse($result, $message = "")
+    public function sendResponse($result, $message = "Sucessfully done!")
     {
         $response = [
             'status' => true,
