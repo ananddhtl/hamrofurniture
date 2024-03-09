@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AuthController extends BaseApiController
 {
@@ -19,14 +20,15 @@ class AuthController extends BaseApiController
     {
         try {
             DB::beginTransaction();
+          
             $validated = $request->validated();
-    
+
             $user = PublicUsers::create([
-                'username' => $validated['name'],
+                'username' => $validated['username'],
                 'email' => $validated['email'],
                 'phone' => $validated['phone'],
                 'address' => $validated['address'],
-                'gender' => $validated['gender'],
+               
                 'password' => bcrypt($validated['password']),
             ]);
     
@@ -43,7 +45,7 @@ class AuthController extends BaseApiController
     
             DB::commit();
     
-            return $this->sendResponse(['user' => new PublicUsersResource($user), 'token' => $token]);
+            return $this->sendResponse(['user' => new PublicUsersResource($user),  'token' => $token]);
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->sendError($e->getMessage());
@@ -96,7 +98,98 @@ class AuthController extends BaseApiController
             $token->revoke();
             return $this->sendResponse([], "User logged out successfully.");
         } catch (\Exception $e) {
+          
             return $this->sendError("Server Error. Please try again later.");
         }
     }
+    
+
+    public function changePassword(Request $request)
+    {
+        try {
+            $request->validate([
+                'old_password' => 'required|string|min:8|max:20',
+                'new_password' => 'required|string|min:8|max:20',
+            ]);
+
+            $user = PublicUsers::findOrfail(auth('api')->user()->id);
+
+            if (!(Hash::check($request['old_password'], $user->getAuthPassword()))) {
+                return $this->sendError('Your old password does not match with the password you provided. Please try again.');
+            }
+
+            if (strcmp($request['old_password'], $request['new_password']) == 0) {
+                return $this->sendError('New Password cannot be same as your old password. Please choose a different password.');
+            }
+
+            $user->password = bcrypt($request['new_password']);
+            $user->save();
+
+            return $this->sendResponse([
+                'user' => new PublicUsersResource($user),
+            ], "Password updated successfully");
+        } catch (\Exception $e) {
+       
+            return $this->sendError("Server Error. Please try again later.");
+        }
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        try {
+           
+            $user = PublicUsers::where('email', $request->email)->first();
+
+            if (!$user) {
+                return $this->sendError('User not found with this email.');
+            }
+
+            if ($user->otp_sent_at) {
+                $diffInSeconds = (int) Carbon::now()->diffInSeconds($user->otp_sent_at);
+            }
+
+            if ($user->otp && $diffInSeconds < 180) {
+                return $this->sendError("Verification sent already! Please try again in " . 180 - $diffInSeconds . " seconds.");
+            }
+
+            $email_verifiaction_code = $this->generateVerificationCode();
+
+            $user->otp = $email_verifiaction_code;
+            $user->otp_sent_at = Carbon::now();
+
+            $temp_token = $this->generateTemporaryToken();
+
+            if (!$temp_token) {
+                return $this->errorResponse('Sorry! We cannot process your request at this moment. Please contact customer support for more details.');
+            }
+            $user->temp_token = $temp_token;
+            $user->save();
+
+            Mail::to($user->email)->send(new \App\Mail\SendOTP($user));
+
+            return $this->sendResponse([
+                'temp_token' => $temp_token,
+            ], "OTP has been sent to your email");
+        } catch (Exception $e) {
+            return $this->sendError("Server Error. Please try again later.");
+        }
+    }
+    private function generateVerificationCode()
+    {
+        if (config('constant.app_env') === "local")
+            return 987654;
+        else return rand(10000, 99999);
+    }
+
+    protected function generateTemporaryToken()
+    {
+        $temp_token = Str::random(60);
+
+        if (PublicUsers::where('temp_token', $temp_token)->count() == 0) {
+            return $temp_token;
+        }
+
+        $this->generateTemporaryToken();
+    }
+
 }

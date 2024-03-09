@@ -18,13 +18,18 @@ use App\Http\Controllers\Api\AuthController;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
-
-
 Route::group(['prefix' => 'auth'], function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
 
     Route::middleware('api')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
+
+        Route::post('change-password', [AuthController::class, 'changePassword']);
+
+        Route::post('verify-otp', [AuthController::class, 'forgotOTPVerify']);
+        Route::post('reset-password', [AuthController::class, 'resetPassword']);
     });
+
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
 });

@@ -14,13 +14,13 @@ class PublicUsersResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return [
+        return  [
             'id' => $this->id,
             'email' => $this->email,
-            'name' => $this->name,
-            'phonenumber' => $this->phonenumber,
+            'username' => $this->username,
+            'phone' => $this->phone,
             'address' => $this->address,
-            'gender' => $this->gender,
+           
         ];
     }
 }
